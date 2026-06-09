@@ -7,7 +7,8 @@ const DEFAULT_SETTINGS = {
   includeAdult: false,
   browserNotificationMode: "summary",
   notifyBrowser: true,
-  notifyDiscord: true
+  notifyDiscord: true,
+  skipInitialExistingProducts: true
 };
 const NOTIFICATION_ICON_URL = ext.runtime.getURL("icons/notification-128.png");
 
@@ -72,6 +73,8 @@ async function runCheck({ reason } = {}) {
   const settings = await getSettings();
   const webhookUrl = settings.discordWebhookUrl.trim();
   const tags = normalizeTags(settings.boothTags);
+  const { monitorInitialized = false } = await ext.storage.local.get("monitorInitialized");
+  const shouldBootstrapOnly = settings.skipInitialExistingProducts && !monitorInitialized;
 
   if (tags.length === 0 || (!settings.notifyDiscord && !settings.notifyBrowser)) {
     await setLastRun({
@@ -119,7 +122,8 @@ async function runCheck({ reason } = {}) {
       browserFailedCount: 0,
       sourceUrl: "",
       fallbackFromUrl: "",
-      adultSearchFallback: false
+      adultSearchFallback: false,
+      bootstrappedCount: 0
     };
 
     try {
@@ -135,6 +139,18 @@ async function runCheck({ reason } = {}) {
 
       if (adultSearchFallback) {
         summary.adultSearchFallbackCount += 1;
+      }
+
+      if (shouldBootstrapOnly) {
+        const unseenProducts = products.filter((product) => !seenIds.includes(product.id));
+        for (const product of unseenProducts) {
+          seenIds.push(product.id);
+        }
+        tagResult.bootstrappedCount = unseenProducts.length;
+        summary.bootstrappedCount += unseenProducts.length;
+        await sleep(2000);
+        tagResults.push(tagResult);
+        continue;
       }
 
       for (const product of products) {
@@ -223,6 +239,9 @@ async function runCheck({ reason } = {}) {
   }
 
   await ext.storage.local.set({ seenProductIds: unique(seenIds) });
+  if (shouldBootstrapOnly) {
+    await ext.storage.local.set({ monitorInitialized: true });
+  }
   await saveRecentProducts(newlySeenProducts);
   await updateBadge();
   await setLastRun({
@@ -574,7 +593,8 @@ function emptySummary() {
     discordFailedCount: 0,
     browserNotifiedCount: 0,
     browserFailedCount: 0,
-    adultSearchFallbackCount: 0
+    adultSearchFallbackCount: 0,
+    bootstrappedCount: 0
   };
 }
 
@@ -584,6 +604,12 @@ function buildRunMessage(errors, summary, browserNotificationErrors = []) {
   if (summary.adultSearchFallbackCount > 0) {
     messages.push(
       `${summary.adultSearchFallbackCount} adult search(es) returned no products and fell back to normal search. Check BOOTH login and adult content settings.`
+    );
+  }
+
+  if (summary.bootstrappedCount > 0) {
+    messages.push(
+      `${summary.bootstrappedCount} existing product(s) were marked as seen without notification.`
     );
   }
 

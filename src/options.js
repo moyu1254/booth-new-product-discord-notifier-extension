@@ -5,7 +5,8 @@ const DEFAULT_SETTINGS = {
   includeAdult: false,
   browserNotificationMode: "summary",
   notifyBrowser: true,
-  notifyDiscord: true
+  notifyDiscord: true,
+  skipInitialExistingProducts: true
 };
 const ext = globalThis.browser || chrome;
 
@@ -14,6 +15,7 @@ const webhookUrlInput = document.querySelector("#discord-webhook-url");
 const tagsInput = document.querySelector("#booth-tags");
 const intervalInput = document.querySelector("#check-interval-minutes");
 const includeAdultInput = document.querySelector("#include-adult");
+const skipInitialExistingProductsInput = document.querySelector("#skip-initial-existing-products");
 const browserNotificationModeInput = document.querySelector("#browser-notification-mode");
 const notifyDiscordInput = document.querySelector("#notify-discord");
 const notifyBrowserInput = document.querySelector("#notify-browser");
@@ -36,6 +38,7 @@ async function restoreOptions() {
   tagsInput.value = normalizeTags(currentSettings.boothTags).join("\n");
   intervalInput.value = currentSettings.checkIntervalMinutes;
   includeAdultInput.checked = currentSettings.includeAdult;
+  skipInitialExistingProductsInput.checked = currentSettings.skipInitialExistingProducts;
   browserNotificationModeInput.value = currentSettings.browserNotificationMode || "summary";
   notifyDiscordInput.checked = currentSettings.notifyDiscord;
   notifyBrowserInput.checked = currentSettings.notifyBrowser;
@@ -49,18 +52,28 @@ async function saveOptions(event) {
 }
 
 async function saveCurrentOptions() {
+  const { settings: previousSettings } = await ext.storage.sync.get("settings");
+  const previousTags = normalizeTags(previousSettings?.boothTags);
   const settings = {
     discordWebhookUrl: webhookUrlInput.value.trim(),
     boothTags: normalizeTags(tagsInput.value.split("\n")),
     checkIntervalMinutes: Math.max(1, Number(intervalInput.value) || 30),
     includeAdult: includeAdultInput.checked,
+    skipInitialExistingProducts: skipInitialExistingProductsInput.checked,
     browserNotificationMode: browserNotificationModeInput.value,
     notifyBrowser: notifyBrowserInput.checked,
     notifyDiscord: notifyDiscordInput.checked
   };
 
   await ext.storage.sync.set({ settings });
+  if (tagsChanged(previousTags, settings.boothTags)) {
+    await ext.storage.local.set({ monitorInitialized: false });
+  }
   return settings;
+}
+
+function tagsChanged(previousTags, nextTags) {
+  return previousTags.join("\n") !== nextTags.join("\n");
 }
 
 function normalizeTags(tags) {
@@ -85,7 +98,7 @@ async function runNow() {
 }
 
 async function resetSeenProducts() {
-  await ext.storage.local.set({ seenProductIds: [] });
+  await ext.storage.local.set({ seenProductIds: [], monitorInitialized: false });
   showStatus("通知済み履歴をリセットしました。");
 }
 
