@@ -1,0 +1,51 @@
+# BOOTH New Product Discord Notifier Extension
+
+BOOTH の指定タグに新商品が追加されたら Discord Webhook に通知する Chrome / Edge 向け拡張機能です。
+
+## Features
+
+- ブラウザ起動時にチェック
+- ブラウザを開いている間の定期チェック
+- BOOTH タグを複数指定
+- Discord Webhook へ embed 通知
+- 通知済み商品 ID をブラウザ内に保存
+
+## Install for Development
+
+1. Chrome または Edge で `chrome://extensions` を開く
+2. Developer mode を有効にする
+3. Load unpacked を選択する
+4. このリポジトリのフォルダを選択する
+5. 拡張機能の Options で Discord Webhook URL と BOOTH タグを設定する
+
+## Settings
+
+| Item | Description |
+| --- | --- |
+| Discord Webhook URL | 通知先 Discord Webhook URL |
+| BOOTH Tags | 監視する BOOTH タグ。1 行に 1 タグ |
+| Check Interval Minutes | 定期チェック間隔 |
+| Include adult products | BOOTH 検索に `adult=include` を付ける |
+
+## Browser Behavior
+
+この拡張機能は Manifest V3 の service worker と `chrome.alarms` を使います。
+
+- ブラウザ起動時に `chrome.runtime.onStartup` でチェックします。
+- インストールまたは更新時に `chrome.runtime.onInstalled` でチェックします。
+- ブラウザが起動している間は `chrome.alarms` で定期チェックします。
+- ブラウザが閉じている間や PC がスリープしている間は実行されません。
+
+## Permissions
+
+| Permission | Reason |
+| --- | --- |
+| `alarms` | 定期チェック |
+| `storage` | 設定と通知済み商品 ID の保存 |
+| `offscreen` | BOOTH の HTML を DOMParser で解析 |
+| `https://booth.pm/*` | BOOTH 商品検索ページの取得 |
+| `https://discord.com/api/webhooks/*` | Discord Webhook への通知 |
+
+## Notes
+
+BOOTH の HTML 構造が変わると商品カードの解析が失敗する可能性があります。

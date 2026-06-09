@@ -1,0 +1,52 @@
+<!doctype html>
+<html lang="ja">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BOOTH Notifier Settings</title>
+    <link rel="stylesheet" href="styles.css">
+  </head>
+  <body>
+    <main class="page">
+      <h1>BOOTH Notifier Settings</h1>
+
+      <form id="settings-form" class="panel">
+        <label>
+          Discord Webhook URL
+          <input id="discord-webhook-url" type="url" placeholder="https://discord.com/api/webhooks/..." autocomplete="off">
+        </label>
+
+        <label>
+          BOOTH Tags
+          <textarea id="booth-tags" rows="6" placeholder="VRChat&#10;Unity"></textarea>
+          <span class="hint">1行に1タグずつ入力してください。</span>
+        </label>
+
+        <label>
+          Check Interval Minutes
+          <input id="check-interval-minutes" type="number" min="1" step="1">
+        </label>
+
+        <label class="checkbox">
+          <input id="include-adult" type="checkbox">
+          成人向け商品を検索結果に含める
+        </label>
+
+        <div class="actions">
+          <button type="submit">保存</button>
+          <button id="run-now" type="button">今すぐ実行</button>
+          <button id="reset-seen" type="button" class="secondary">通知済み履歴をリセット</button>
+        </div>
+      </form>
+
+      <section class="panel">
+        <h2>Last Run</h2>
+        <pre id="last-run">No run yet.</pre>
+      </section>
+
+      <p id="status" role="status"></p>
+    </main>
+
+    <script src="options.js"></script>
+  </body>
+</html>

@@ -1,0 +1,23 @@
+{
+  "manifest_version": 3,
+  "name": "BOOTH New Product Discord Notifier",
+  "description": "Notify Discord when new BOOTH products appear for configured tags.",
+  "version": "0.1.0",
+  "permissions": [
+    "alarms",
+    "offscreen",
+    "storage"
+  ],
+  "host_permissions": [
+    "https://booth.pm/*",
+    "https://discord.com/api/webhooks/*"
+  ],
+  "background": {
+    "service_worker": "src/background.js"
+  },
+  "options_page": "src/options.html",
+  "action": {
+    "default_title": "BOOTH Notifier",
+    "default_popup": "src/popup.html"
+  }
+}
