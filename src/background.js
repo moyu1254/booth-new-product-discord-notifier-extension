@@ -101,12 +101,17 @@ async function runCheck({ reason } = {}) {
       discordFailedCount: 0,
       browserNotifiedCount: 0,
       browserFailedCount: 0,
-      sourceUrl: ""
+      sourceUrl: "",
+      fallbackFromUrl: ""
     };
 
     try {
-      const { products, sourceUrl } = await fetchProductsByTag(tag, settings.includeAdult);
+      const { products, sourceUrl, fallbackFromUrl } = await fetchProductsByTag(
+        tag,
+        settings.includeAdult
+      );
       tagResult.sourceUrl = sourceUrl;
+      tagResult.fallbackFromUrl = fallbackFromUrl;
       tagResult.fetchedCount = products.length;
       summary.fetchedCount += products.length;
 
@@ -194,15 +199,20 @@ async function setLastRun(lastRun) {
 }
 
 async function fetchProductsByTag(tag, includeAdult) {
-  const params = new URLSearchParams();
-  params.set("sort", "new");
-  params.append("tags[]", tag);
+  const primaryResult = await fetchProductsByTagUrl(buildBoothSearchUrl(tag, includeAdult));
 
-  if (includeAdult) {
-    params.set("adult", "include");
+  if (!includeAdult || primaryResult.products.length > 0) {
+    return primaryResult;
   }
 
-  const sourceUrl = `https://booth.pm/ja/items?${params.toString()}`;
+  const fallbackResult = await fetchProductsByTagUrl(buildBoothSearchUrl(tag, false));
+  return {
+    ...fallbackResult,
+    fallbackFromUrl: primaryResult.sourceUrl
+  };
+}
+
+async function fetchProductsByTagUrl(sourceUrl) {
   const response = await fetch(sourceUrl, {
     credentials: "omit"
   });
@@ -213,7 +223,19 @@ async function fetchProductsByTag(tag, includeAdult) {
 
   const html = await response.text();
   const products = await parseProductsInOffscreenDocument(html);
-  return { products, sourceUrl };
+  return { products, sourceUrl, fallbackFromUrl: "" };
+}
+
+function buildBoothSearchUrl(tag, includeAdult) {
+  const params = new URLSearchParams();
+  params.set("sort", "new");
+  params.append("tags[]", tag);
+
+  if (includeAdult) {
+    params.set("adult", "include");
+  }
+
+  return `https://booth.pm/ja/items?${params.toString()}`;
 }
 
 async function sendDiscordNotification(webhookUrl, product, tag) {

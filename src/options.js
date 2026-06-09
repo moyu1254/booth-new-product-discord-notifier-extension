@@ -40,7 +40,11 @@ async function restoreOptions() {
 
 async function saveOptions(event) {
   event.preventDefault();
+  await saveCurrentOptions();
+  showStatus("保存しました。");
+}
 
+async function saveCurrentOptions() {
   const settings = {
     discordWebhookUrl: webhookUrlInput.value.trim(),
     boothTags: normalizeTags(tagsInput.value.split("\n")),
@@ -51,7 +55,7 @@ async function saveOptions(event) {
   };
 
   await chrome.storage.sync.set({ settings });
-  showStatus("保存しました。");
+  return settings;
 }
 
 function normalizeTags(tags) {
@@ -64,6 +68,7 @@ function normalizeTags(tags) {
 }
 
 async function runNow() {
+  await saveCurrentOptions();
   const response = await chrome.runtime.sendMessage({ type: "RUN_CHECK_NOW" });
   if (response?.ok) {
     await restoreOptions();
