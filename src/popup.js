@@ -1,18 +1,52 @@
 const summary = document.querySelector("#summary");
+const recentProducts = document.querySelector("#recent-products");
 const openOptions = document.querySelector("#open-options");
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const { lastRun } = await chrome.storage.local.get("lastRun");
+  const { lastRun, recentProducts: products = [] } = await chrome.storage.local.get([
+    "lastRun",
+    "recentProducts"
+  ]);
   if (!lastRun) {
     summary.textContent = "まだ実行されていません。";
-    return;
+  } else {
+    const checkedAt = new Date(lastRun.checkedAt).toLocaleString();
+    const runSummary = lastRun.summary || {};
+    summary.textContent = `${checkedAt}: ${lastRun.status} / 新規${runSummary.newCount ?? 0}件 / Discord ${runSummary.discordNotifiedCount ?? lastRun.notifiedCount}件`;
   }
 
-  const checkedAt = new Date(lastRun.checkedAt).toLocaleString();
-  const runSummary = lastRun.summary || {};
-  summary.textContent = `${checkedAt}: ${lastRun.status} / 新規${runSummary.newCount ?? 0}件 / Discord ${runSummary.discordNotifiedCount ?? lastRun.notifiedCount}件 / ブラウザ ${runSummary.browserNotifiedCount ?? 0}件`;
+  renderRecentProducts(products);
+  await chrome.runtime.sendMessage({ type: "CLEAR_BADGE" });
 });
 
 openOptions.addEventListener("click", () => {
   chrome.runtime.openOptionsPage();
 });
+
+function renderRecentProducts(products) {
+  if (products.length === 0) {
+    recentProducts.textContent = "新商品履歴はまだありません。";
+    return;
+  }
+
+  recentProducts.replaceChildren(
+    ...products.slice(0, 20).map((product) => {
+      const link = document.createElement("a");
+      link.className = "recent-product";
+      link.href = product.url;
+      link.target = "_blank";
+      link.rel = "noreferrer";
+
+      const title = document.createElement("span");
+      title.className = "recent-product-title";
+      title.textContent = product.title;
+
+      const meta = document.createElement("span");
+      meta.className = "recent-product-meta";
+      meta.textContent = `${product.price} / ${product.tag}`;
+
+      link.append(title, meta);
+      return link;
+    })
+  );
+}

@@ -35,6 +35,13 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 });
 
 chrome.runtime.onMessage.addListener((message, _sender, sendResponse) => {
+  if (message?.type === "CLEAR_BADGE") {
+    clearBadge()
+      .then(() => sendResponse({ ok: true }))
+      .catch((error) => sendResponse({ ok: false, message: error.message }));
+    return true;
+  }
+
   if (message?.type !== "RUN_CHECK_NOW") {
     return false;
   }
@@ -96,6 +103,7 @@ async function runCheck({ reason } = {}) {
   const errors = [];
   const browserNotificationErrors = [];
   const browserSummaryItems = [];
+  const newlySeenProducts = [];
   const tagResults = [];
   const summary = emptySummary();
 
@@ -172,6 +180,7 @@ async function runCheck({ reason } = {}) {
 
         if (discordNotified || (browserNotified.ok && !browserNotified.pendingSummary)) {
           seenIds.push(product.id);
+          newlySeenProducts.push({ ...product, tag, detectedAt: new Date().toISOString() });
           notifiedCount += 1;
           await sleep(1000);
         }
@@ -193,6 +202,11 @@ async function runCheck({ reason } = {}) {
         summary.browserNotifiedCount += 1;
         if (!seenIds.includes(item.product.id)) {
           seenIds.push(item.product.id);
+          newlySeenProducts.push({
+            ...item.product,
+            tag: item.tag,
+            detectedAt: new Date().toISOString()
+          });
           notifiedCount += 1;
         }
       }
@@ -208,6 +222,8 @@ async function runCheck({ reason } = {}) {
   }
 
   await chrome.storage.local.set({ seenProductIds: unique(seenIds) });
+  await saveRecentProducts(newlySeenProducts);
+  await updateBadge();
   await setLastRun({
     checkedAt: new Date().toISOString(),
     reason,
@@ -238,6 +254,26 @@ async function getSeenProductIds() {
 
 async function setLastRun(lastRun) {
   await chrome.storage.local.set({ lastRun });
+}
+
+async function saveRecentProducts(products) {
+  if (products.length === 0) {
+    return;
+  }
+
+  const { recentProducts = [], unreadCount = 0 } = await chrome.storage.local.get([
+    "recentProducts",
+    "unreadCount"
+  ]);
+  const merged = [...products, ...recentProducts.filter((product) => !products.some((p) => p.id === product.id))].slice(
+    0,
+    100
+  );
+
+  await chrome.storage.local.set({
+    recentProducts: merged,
+    unreadCount: unreadCount + products.length
+  });
 }
 
 async function fetchProductsByTag(tag, includeAdult) {
@@ -385,6 +421,19 @@ async function saveNotificationLink(notificationId, url) {
       [notificationId]: url
     }
   });
+}
+
+async function updateBadge() {
+  const { unreadCount = 0 } = await chrome.storage.local.get("unreadCount");
+  await chrome.action.setBadgeBackgroundColor({ color: "#e75493" });
+  await chrome.action.setBadgeText({
+    text: unreadCount > 0 ? String(Math.min(unreadCount, 99)) : ""
+  });
+}
+
+async function clearBadge() {
+  await chrome.storage.local.set({ unreadCount: 0 });
+  await chrome.action.setBadgeText({ text: "" });
 }
 
 function cleanText(text) {

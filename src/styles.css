@@ -124,7 +124,7 @@ pre {
 }
 
 .popup {
-  width: 260px;
+  width: 360px;
   padding: 16px;
   background: #fff;
 }
@@ -132,4 +132,43 @@ pre {
 .popup h1 {
   margin-bottom: 12px;
   font-size: 18px;
+}
+
+.popup h2 {
+  margin: 16px 0 8px;
+  font-size: 14px;
+}
+
+.recent-products {
+  display: grid;
+  gap: 8px;
+  max-height: 360px;
+  overflow: auto;
+  margin-bottom: 12px;
+  color: #696976;
+  font-size: 13px;
+}
+
+.recent-product {
+  display: grid;
+  gap: 3px;
+  padding: 8px;
+  border: 1px solid #dedee6;
+  border-radius: 6px;
+  color: inherit;
+  text-decoration: none;
+}
+
+.recent-product:hover {
+  background: #f7f7fa;
+}
+
+.recent-product-title {
+  color: #25252b;
+  font-weight: 700;
+}
+
+.recent-product-meta {
+  color: #696976;
+  font-size: 12px;
 }

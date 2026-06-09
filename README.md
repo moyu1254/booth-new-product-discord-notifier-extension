@@ -9,6 +9,7 @@ BOOTH の指定タグに新商品が追加されたら Discord Webhook に通知
 - BOOTH タグを複数指定
 - Discord Webhook へ embed 通知
 - ブラウザ通知
+- 拡張機能アイコンの未読バッジとポップアップ内の新商品一覧
 - 通知済み商品 ID をブラウザ内に保存
 
 ## Install for Development
