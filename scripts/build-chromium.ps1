@@ -1,12 +1,8 @@
 param(
-  [string]$OutputDir = "dist/firefox"
+  [string]$OutputDir = "dist/chromium"
 )
 
 $ErrorActionPreference = "Stop"
-
-$rootManifest = Get-Content "manifest.json" | ConvertFrom-Json
-$firefoxManifest = Get-Content "manifests/firefox.json" | ConvertFrom-Json
-$firefoxManifest.version = $rootManifest.version
 
 if (Test-Path $OutputDir) {
   Remove-Item -LiteralPath $OutputDir -Recurse -Force
@@ -15,7 +11,8 @@ if (Test-Path $OutputDir) {
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 Copy-Item -Recurse -Path "src" -Destination (Join-Path $OutputDir "src")
 Copy-Item -Recurse -Path "icons" -Destination (Join-Path $OutputDir "icons")
+Copy-Item -Path ".gitignore" -Destination (Join-Path $OutputDir ".gitignore")
 Copy-Item -Path "README.md" -Destination (Join-Path $OutputDir "README.md")
-$firefoxManifest | ConvertTo-Json -Depth 10 | Set-Content -Path (Join-Path $OutputDir "manifest.json")
+Copy-Item -Path "manifest.json" -Destination (Join-Path $OutputDir "manifest.json")
 
-Write-Host "Firefox extension written to $OutputDir"
+Write-Host "Chromium extension written to $OutputDir"
