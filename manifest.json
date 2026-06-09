@@ -2,7 +2,7 @@
   "manifest_version": 3,
   "name": "BOOTH New Product Discord Notifier",
   "description": "Notify Discord when new BOOTH products appear for configured tags.",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "permissions": [
     "alarms",
     "notifications",
