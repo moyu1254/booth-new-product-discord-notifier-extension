@@ -3,7 +3,7 @@ const DEFAULT_SETTINGS = {
   boothTags: [],
   checkIntervalMinutes: 30,
   discordWebhookUrl: "",
-  includeAdult: true,
+  includeAdult: false,
   notifyBrowser: true,
   notifyDiscord: true
 };
@@ -58,7 +58,7 @@ async function scheduleChecks() {
 async function runCheck({ reason } = {}) {
   const settings = await getSettings();
   const webhookUrl = settings.discordWebhookUrl.trim();
-  const tags = settings.boothTags.map((tag) => tag.trim()).filter(Boolean);
+  const tags = normalizeTags(settings.boothTags);
 
   if (tags.length === 0 || (!settings.notifyDiscord && !settings.notifyBrowser)) {
     await setLastRun({
@@ -100,11 +100,13 @@ async function runCheck({ reason } = {}) {
       discordNotifiedCount: 0,
       discordFailedCount: 0,
       browserNotifiedCount: 0,
-      browserFailedCount: 0
+      browserFailedCount: 0,
+      sourceUrl: ""
     };
 
     try {
-      const products = await fetchProductsByTag(tag, settings.includeAdult);
+      const { products, sourceUrl } = await fetchProductsByTag(tag, settings.includeAdult);
+      tagResult.sourceUrl = sourceUrl;
       tagResult.fetchedCount = products.length;
       summary.fetchedCount += products.length;
 
@@ -178,7 +180,7 @@ async function getSettings() {
   return {
     ...DEFAULT_SETTINGS,
     ...(settings || {}),
-    boothTags: Array.isArray(settings?.boothTags) ? settings.boothTags : []
+    boothTags: normalizeTags(settings?.boothTags)
   };
 }
 
@@ -200,7 +202,8 @@ async function fetchProductsByTag(tag, includeAdult) {
     params.set("adult", "include");
   }
 
-  const response = await fetch(`https://booth.pm/ja/items?${params.toString()}`, {
+  const sourceUrl = `https://booth.pm/ja/items?${params.toString()}`;
+  const response = await fetch(sourceUrl, {
     credentials: "omit"
   });
 
@@ -209,7 +212,8 @@ async function fetchProductsByTag(tag, includeAdult) {
   }
 
   const html = await response.text();
-  return parseProductsInOffscreenDocument(html);
+  const products = await parseProductsInOffscreenDocument(html);
+  return { products, sourceUrl };
 }
 
 async function sendDiscordNotification(webhookUrl, product, tag) {
@@ -311,6 +315,15 @@ function unique(values) {
 
 function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function normalizeTags(tags) {
+  const rawTags = Array.isArray(tags) ? tags : [];
+
+  return rawTags
+    .flatMap((tag) => String(tag).split(/[\n,、]/))
+    .map((tag) => tag.trim())
+    .filter(Boolean);
 }
 
 function emptySummary() {

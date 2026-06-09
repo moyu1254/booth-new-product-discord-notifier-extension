@@ -2,7 +2,7 @@ const DEFAULT_SETTINGS = {
   boothTags: [],
   checkIntervalMinutes: 30,
   discordWebhookUrl: "",
-  includeAdult: true,
+  includeAdult: false,
   notifyBrowser: true,
   notifyDiscord: true
 };
@@ -30,7 +30,7 @@ async function restoreOptions() {
   const currentSettings = { ...DEFAULT_SETTINGS, ...(settings || {}) };
 
   webhookUrlInput.value = currentSettings.discordWebhookUrl;
-  tagsInput.value = currentSettings.boothTags.join("\n");
+  tagsInput.value = normalizeTags(currentSettings.boothTags).join("\n");
   intervalInput.value = currentSettings.checkIntervalMinutes;
   includeAdultInput.checked = currentSettings.includeAdult;
   notifyDiscordInput.checked = currentSettings.notifyDiscord;
@@ -43,10 +43,7 @@ async function saveOptions(event) {
 
   const settings = {
     discordWebhookUrl: webhookUrlInput.value.trim(),
-    boothTags: tagsInput.value
-      .split("\n")
-      .map((tag) => tag.trim())
-      .filter(Boolean),
+    boothTags: normalizeTags(tagsInput.value.split("\n")),
     checkIntervalMinutes: Math.max(1, Number(intervalInput.value) || 30),
     includeAdult: includeAdultInput.checked,
     notifyBrowser: notifyBrowserInput.checked,
@@ -55,6 +52,15 @@ async function saveOptions(event) {
 
   await chrome.storage.sync.set({ settings });
   showStatus("保存しました。");
+}
+
+function normalizeTags(tags) {
+  const rawTags = Array.isArray(tags) ? tags : [];
+
+  return rawTags
+    .flatMap((tag) => String(tag).split(/[\n,、]/))
+    .map((tag) => tag.trim())
+    .filter(Boolean);
 }
 
 async function runNow() {
