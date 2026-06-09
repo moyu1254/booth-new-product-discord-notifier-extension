@@ -1,4 +1,8 @@
 const ALARM_NAME = "booth-product-check";
+if (typeof importScripts === "function") {
+  importScripts("product-parser.js");
+}
+
 const ext = globalThis.browser || chrome;
 const DEFAULT_SETTINGS = {
   boothTags: [],
@@ -56,7 +60,7 @@ ext.runtime.onMessage.addListener((message, _sender, sendResponse) => {
 });
 
 ext.storage.onChanged.addListener((changes, areaName) => {
-  if (areaName === "sync" && changes.settings) {
+  if ((areaName === "local" || areaName === "sync") && changes.settings) {
     scheduleChecks();
   }
 });
@@ -95,6 +99,19 @@ async function runCheck({ reason } = {}) {
       reason,
       status: "skipped",
       message: "Discord notification is enabled, but Webhook URL is not configured.",
+      notifiedCount: 0,
+      summary: emptySummary(),
+      tags: []
+    });
+    return;
+  }
+
+  if (settings.notifyDiscord && !isDiscordWebhookUrl(webhookUrl)) {
+    await setLastRun({
+      checkedAt: new Date().toISOString(),
+      reason,
+      status: "skipped",
+      message: "Discord Webhook URL must start with https://discord.com/api/webhooks/.",
       notifiedCount: 0,
       summary: emptySummary(),
       tags: []
@@ -259,12 +276,30 @@ async function runCheck({ reason } = {}) {
 }
 
 async function getSettings() {
-  const { settings } = await ext.storage.sync.get("settings");
+  const [{ settings: localSettings }, { settings: syncedSettings }] = await Promise.all([
+    ext.storage.local.get("settings"),
+    ext.storage.sync.get("settings")
+  ]);
+  const settings = localSettings || syncedSettings || {};
+
+  if (!localSettings && syncedSettings) {
+    await ext.storage.local.set({ settings });
+    await removeSyncedSettings();
+  }
+
   return {
     ...DEFAULT_SETTINGS,
     ...(settings || {}),
     boothTags: normalizeTags(settings?.boothTags)
   };
+}
+
+async function removeSyncedSettings() {
+  try {
+    await ext.storage.sync.remove("settings");
+  } catch (error) {
+    console.warn("Failed to remove synced settings.", error);
+  }
 }
 
 async function getSeenProductIds() {
@@ -456,22 +491,6 @@ async function clearBadge() {
   await getActionApi().setBadgeText({ text: "" });
 }
 
-function cleanText(text) {
-  return (text || "").replace(/\s+/g, " ").trim();
-}
-
-function normalizeImageUrl(url) {
-  if (!url) {
-    return "";
-  }
-
-  if (url.startsWith("//")) {
-    return `https:${url}`;
-  }
-
-  return url;
-}
-
 async function parseProductsInOffscreenDocument(html) {
   if (typeof DOMParser !== "undefined") {
     return parseProductsFromHtml(html);
@@ -512,50 +531,6 @@ async function ensureOffscreenDocument() {
   });
 }
 
-function parseProductsFromHtml(html) {
-  const document = new DOMParser().parseFromString(html, "text/html");
-  const cards = document.querySelectorAll("li[class*='item-card'], div[class*='item-card']");
-
-  return Array.from(cards)
-    .map(parseProductCard)
-    .filter(Boolean);
-}
-
-function parseProductCard(card) {
-  const link =
-    card.querySelector("a[class*='item-card__title'][href]") ||
-    card.querySelector("a[class*='pc--item-card__title'][href]") ||
-    card.querySelector("a[href*='/items/']");
-
-  if (!link) {
-    return null;
-  }
-
-  const itemMatch = link.href.match(/\/items\/(\d+)/);
-  if (!itemMatch) {
-    return null;
-  }
-
-  const image = card.querySelector("img");
-  const price = card.querySelector("[class*='price']");
-  const id = itemMatch[1];
-  const title = cleanText(link.textContent) || cleanText(image?.alt) || "無題の商品";
-  const imageUrl = normalizeImageUrl(
-    image?.getAttribute("src") ||
-      image?.getAttribute("data-src") ||
-      image?.getAttribute("data-original") ||
-      ""
-  );
-
-  return {
-    id,
-    title,
-    url: `https://booth.pm/ja/items/${id}`,
-    price: cleanText(price?.textContent) || "価格不明",
-    imageUrl
-  };
-}
-
 function unique(values) {
   return Array.from(new Set(values));
 }
@@ -583,6 +558,17 @@ function normalizeTags(tags) {
     .flatMap((tag) => String(tag).split(/[\n,、]/))
     .map((tag) => tag.trim())
     .filter(Boolean);
+}
+
+function isDiscordWebhookUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    return parsedUrl.protocol === "https:" &&
+      parsedUrl.hostname === "discord.com" &&
+      parsedUrl.pathname.startsWith("/api/webhooks/");
+  } catch (error) {
+    return false;
+  }
 }
 
 function emptySummary() {
