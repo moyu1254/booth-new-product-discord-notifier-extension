@@ -141,10 +141,16 @@ async function runNow() {
     return;
   }
 
-  const response = await ext.runtime.sendMessage({ type: "RUN_CHECK_NOW" });
+  let response;
+  try {
+    response = await ext.runtime.sendMessage({ type: "RUN_CHECK_NOW" });
+  } catch (error) {
+    showStatus(error.message || "実行の開始に失敗しました。");
+    return;
+  }
+
   if (response?.ok) {
-    await restoreOptions();
-    showStatus("実行しました。");
+    showStatus("実行を開始しました。完了後に最終実行結果が更新されます。");
     return;
   }
 

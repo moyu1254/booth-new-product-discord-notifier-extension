@@ -43,11 +43,12 @@ ext.runtime.onMessage.addListener((message, _sender, sendResponse) => {
     return false;
   }
 
-  runCheck({ reason: "manual" })
-    .then(() => sendResponse({ ok: true }))
-    .catch((error) => sendResponse({ ok: false, message: error.message }));
+  runCheck({ reason: "manual" }).catch((error) => {
+    console.error("手動実行に失敗しました。", error);
+  });
+  sendResponse({ ok: true, started: true });
 
-  return true;
+  return false;
 });
 
 ext.storage.onChanged.addListener((changes, areaName) => {
