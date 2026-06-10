@@ -4,16 +4,20 @@ const recentProducts = document.querySelector("#recent-products");
 const openOptions = document.querySelector("#open-options");
 
 document.addEventListener("DOMContentLoaded", async () => {
-  const { lastRun, recentProducts: products = [] } = await ext.storage.local.get([
-    "lastRun",
-    "recentProducts"
+  const [{ lastRun, recentProducts: products = [] }, { settings = {} }] = await Promise.all([
+    ext.storage.local.get(["lastRun", "recentProducts"]),
+    ext.storage.local.get("settings")
   ]);
   if (!lastRun) {
     summary.textContent = "まだ実行されていません。";
   } else {
     const checkedAt = new Date(lastRun.checkedAt).toLocaleString();
     const runSummary = lastRun.summary || {};
-    summary.textContent = `${checkedAt}: ${lastRun.status} / 新規${runSummary.newCount ?? 0}件 / Discord ${runSummary.discordNotifiedCount ?? lastRun.notifiedCount}件`;
+    const browserMode = settings.browserNotificationMode === "perProduct" ? "商品ごと" : "集約";
+    const browserCount =
+      runSummary.browserNotificationCount ??
+      (browserMode === "集約" ? (runSummary.browserNotifiedCount ? 1 : 0) : runSummary.browserNotifiedCount ?? 0);
+    summary.textContent = `${checkedAt}: ${lastRun.status} / 新規${runSummary.newCount ?? 0}件 / Discord ${runSummary.discordNotifiedCount ?? lastRun.notifiedCount}件 / Browser ${browserCount}件（${browserMode}）`;
   }
 
   renderRecentProducts(products);
@@ -31,7 +35,7 @@ function renderRecentProducts(products) {
   }
 
   recentProducts.replaceChildren(
-    ...products.slice(0, 20).map((product) => {
+    ...products.map((product) => {
       const link = document.createElement("a");
       link.className = "recent-product";
       link.href = product.url;

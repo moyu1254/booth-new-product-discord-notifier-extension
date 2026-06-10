@@ -202,6 +202,7 @@ async function runCheck({ reason } = {}) {
         if (browserNotified.ok && !browserNotified.pendingSummary) {
           tagResult.browserNotifiedCount += 1;
           summary.browserNotifiedCount += 1;
+          summary.browserNotificationCount += 1;
         }
 
         if (settings.notifyBrowser && !browserNotified.ok) {
@@ -231,6 +232,9 @@ async function runCheck({ reason } = {}) {
   if (settings.notifyBrowser && settings.browserNotificationMode === "summary") {
     const browserSummary = await sendBrowserSummaryNotification(browserSummaryItems);
     if (browserSummary.ok) {
+      if (browserSummaryItems.length > 0) {
+        summary.browserNotificationCount += 1;
+      }
       for (const item of browserSummaryItems) {
         item.tagResult.browserNotifiedCount += 1;
         summary.browserNotifiedCount += 1;
@@ -245,7 +249,7 @@ async function runCheck({ reason } = {}) {
         }
       }
     } else if (browserSummaryItems.length > 0) {
-      summary.browserFailedCount += browserSummaryItems.length;
+      summary.browserFailedCount += 1;
       for (const item of browserSummaryItems) {
         item.tagResult.browserFailedCount += 1;
       }
@@ -414,7 +418,7 @@ async function sendBrowserNotification(product, tag) {
       iconUrl: NOTIFICATION_ICON_URL,
       title: product.title,
       message: `${product.price} / ${tag}`,
-      contextMessage: "BOOTH New Product"
+      contextMessage: "BOOTH 商品ごと通知"
     });
     await saveNotificationLink(notificationId, product.url);
     return { ok: true, message: "" };
@@ -437,21 +441,25 @@ async function sendBrowserSummaryNotification(items) {
   const tagCounts = countBy(items, (item) => item.tag);
   const tagSummary = Object.entries(tagCounts)
     .map(([tag, count]) => `${tag}: ${count}`)
-    .slice(0, 4)
+    .slice(0, 3)
     .join(" / ");
-  const firstTitle = items[0]?.product?.title || "新商品";
+  const titlePreview = items
+    .slice(0, 3)
+    .map((item, index) => `${index + 1}. ${item.product.title.slice(0, 32)} / ${item.tag}`)
+    .join(" | ");
+  const remainingCount = items.length - 3;
   const message =
     items.length === 1
-      ? `${firstTitle} (${items[0].tag})`
-      : `${tagSummary}${Object.keys(tagCounts).length > 4 ? " ..." : ""}`;
+      ? `${items[0].product.title} / ${items[0].price} / ${items[0].tag}`
+      : `${titlePreview}${remainingCount > 0 ? ` ... 他${remainingCount}件` : ""}${tagSummary ? `\n${tagSummary}` : ""}`;
 
   try {
     await ext.notifications.create(notificationId, {
       type: "basic",
       iconUrl: NOTIFICATION_ICON_URL,
-      title: `BOOTH新商品 ${items.length}件`,
+      title: `BOOTH 集約通知 ${items.length}件`,
       message,
-      contextMessage: "BOOTH New Product"
+      contextMessage: "BOOTH 集約通知"
     });
     await saveNotificationLink(notificationId, items[0].product.url);
     return { ok: true, message: "" };
@@ -578,6 +586,7 @@ function emptySummary() {
     discordNotifiedCount: 0,
     discordFailedCount: 0,
     browserNotifiedCount: 0,
+    browserNotificationCount: 0,
     browserFailedCount: 0,
     adultSearchFallbackCount: 0,
     bootstrappedCount: 0

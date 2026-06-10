@@ -129,22 +129,26 @@ pre {
   background: #fff;
 }
 
+.popup main {
+  display: grid;
+  gap: 12px;
+}
+
 .popup h1 {
   margin-bottom: 12px;
   font-size: 18px;
 }
 
 .popup h2 {
-  margin: 16px 0 8px;
+  margin: 0;
   font-size: 14px;
 }
 
 .recent-products {
   display: grid;
   gap: 8px;
-  max-height: 360px;
+  max-height: min(60vh, 480px);
   overflow: auto;
-  margin-bottom: 12px;
   color: #696976;
   font-size: 13px;
 }
