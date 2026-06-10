@@ -75,7 +75,7 @@ async function runCheck({ reason } = {}) {
       checkedAt: new Date().toISOString(),
       reason,
       status: "skipped",
-      message: "BOOTHタグが設定されていません。",
+      message: "BOOTH タグが設定されていません。",
       notifiedCount: 0,
       summary: emptySummary(),
       tags: []
@@ -437,7 +437,7 @@ function buildRunMessage(errors, summary) {
 
   if (summary.adultSearchFallbackCount > 0) {
     messages.push(
-      `成人向け検索で結果が0件だったため、通常検索へ ${summary.adultSearchFallbackCount} 件フォールバックしました。BOOTHへのログイン状態と成人向け表示設定を確認してください。`
+      `成人向け検索で結果が 0 件だったため、通常検索へ ${summary.adultSearchFallbackCount} 件フォールバックしました。BOOTH の年齢確認が有効か確認してください。`
     );
   }
 
