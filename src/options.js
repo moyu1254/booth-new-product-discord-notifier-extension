@@ -30,9 +30,8 @@ runNowButton.addEventListener("click", runNow);
 resetSeenButton.addEventListener("click", resetSeenProducts);
 
 async function restoreOptions() {
-  const { settings } = await ext.storage.sync.get("settings");
+  const currentSettings = await getSettings();
   const { lastRun } = await ext.storage.local.get("lastRun");
-  const currentSettings = { ...DEFAULT_SETTINGS, ...(settings || {}) };
 
   webhookUrlInput.value = currentSettings.discordWebhookUrl;
   tagsInput.value = normalizeTags(currentSettings.boothTags).join("\n");
@@ -47,12 +46,16 @@ async function restoreOptions() {
 
 async function saveOptions(event) {
   event.preventDefault();
-  await saveCurrentOptions();
-  showStatus("保存しました。");
+  try {
+    await saveCurrentOptions();
+    showStatus("保存しました。");
+  } catch (error) {
+    showStatus(error.message);
+  }
 }
 
 async function saveCurrentOptions() {
-  const { settings: previousSettings } = await ext.storage.sync.get("settings");
+  const previousSettings = await getSettings();
   const previousTags = normalizeTags(previousSettings?.boothTags);
   const settings = {
     discordWebhookUrl: webhookUrlInput.value.trim(),
@@ -65,11 +68,44 @@ async function saveCurrentOptions() {
     notifyDiscord: notifyDiscordInput.checked
   };
 
-  await ext.storage.sync.set({ settings });
+  if (settings.notifyDiscord && settings.discordWebhookUrl && !isDiscordWebhookUrl(settings.discordWebhookUrl)) {
+    throw new Error("Discord Webhook URL は https://discord.com/api/webhooks/ で始まる必要があります。");
+  }
+
+  await ext.storage.local.set({ settings });
+  await removeSyncedSettings();
   if (tagsChanged(previousTags, settings.boothTags)) {
     await ext.storage.local.set({ monitorInitialized: false });
   }
   return settings;
+}
+
+async function getSettings() {
+  const [{ settings: localSettings }, { settings: syncedSettings }] = await Promise.all([
+    ext.storage.local.get("settings"),
+    ext.storage.sync.get("settings")
+  ]);
+
+  if (localSettings) {
+    return { ...DEFAULT_SETTINGS, ...localSettings };
+  }
+
+  if (syncedSettings) {
+    const settings = { ...DEFAULT_SETTINGS, ...syncedSettings };
+    await ext.storage.local.set({ settings });
+    await removeSyncedSettings();
+    return settings;
+  }
+
+  return { ...DEFAULT_SETTINGS };
+}
+
+async function removeSyncedSettings() {
+  try {
+    await ext.storage.sync.remove("settings");
+  } catch (error) {
+    console.warn("Failed to remove synced settings.", error);
+  }
 }
 
 function tagsChanged(previousTags, nextTags) {
@@ -85,8 +121,25 @@ function normalizeTags(tags) {
     .filter(Boolean);
 }
 
+function isDiscordWebhookUrl(url) {
+  try {
+    const parsedUrl = new URL(url);
+    return parsedUrl.protocol === "https:" &&
+      parsedUrl.hostname === "discord.com" &&
+      parsedUrl.pathname.startsWith("/api/webhooks/");
+  } catch (error) {
+    return false;
+  }
+}
+
 async function runNow() {
-  await saveCurrentOptions();
+  try {
+    await saveCurrentOptions();
+  } catch (error) {
+    showStatus(error.message);
+    return;
+  }
+
   const response = await ext.runtime.sendMessage({ type: "RUN_CHECK_NOW" });
   if (response?.ok) {
     await restoreOptions();

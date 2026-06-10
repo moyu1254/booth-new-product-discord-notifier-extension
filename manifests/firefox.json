@@ -12,6 +12,7 @@
   ],
   "background": {
     "scripts": [
+      "src/product-parser.js",
       "src/background.js"
     ],
     "persistent": false
