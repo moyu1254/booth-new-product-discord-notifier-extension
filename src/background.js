@@ -126,22 +126,28 @@ async function runCheck({ reason } = {}) {
       sourceUrl: "",
       fallbackFromUrl: "",
       adultSearchFallback: false,
+      adultSearchBlocked: false,
       bootstrappedCount: 0
     };
 
     try {
-      const { products, sourceUrl, fallbackFromUrl, adultSearchFallback } = await fetchProductsByTag(
+      const { products, sourceUrl, fallbackFromUrl, adultSearchFallback, adultSearchBlocked } = await fetchProductsByTag(
         tag,
         settings.includeAdult
       );
       tagResult.sourceUrl = sourceUrl;
       tagResult.fallbackFromUrl = fallbackFromUrl;
       tagResult.adultSearchFallback = adultSearchFallback;
+      tagResult.adultSearchBlocked = adultSearchBlocked;
       tagResult.fetchedCount = products.length;
       summary.fetchedCount += products.length;
 
       if (adultSearchFallback) {
         summary.adultSearchFallbackCount += 1;
+      }
+
+      if (adultSearchBlocked) {
+        summary.adultSearchBlockedCount += 1;
       }
 
       if (shouldBootstrapOnly) {
@@ -270,14 +276,15 @@ async function fetchProductsByTag(tag, includeAdult) {
   const primaryResult = await fetchProductsByTagUrl(buildBoothSearchUrl(tag, includeAdult));
 
   if (!includeAdult || primaryResult.products.length > 0) {
-    return { ...primaryResult, adultSearchFallback: false };
+    return { ...primaryResult, adultSearchFallback: false, adultSearchBlocked: false };
   }
 
   const fallbackResult = await fetchProductsByTagUrl(buildBoothSearchUrl(tag, false));
   return {
     ...fallbackResult,
     fallbackFromUrl: primaryResult.sourceUrl,
-    adultSearchFallback: true
+    adultSearchFallback: true,
+    adultSearchBlocked: primaryResult.adultSearchBlocked
   };
 }
 
@@ -291,8 +298,18 @@ async function fetchProductsByTagUrl(sourceUrl) {
   }
 
   const html = await response.text();
+  if (isBoothAgeConfirmationPage(html)) {
+    return { products: [], sourceUrl, fallbackFromUrl: "", adultSearchBlocked: true };
+  }
+
   const products = await parseProductsInOffscreenDocument(html);
-  return { products, sourceUrl, fallbackFromUrl: "" };
+  return { products, sourceUrl, fallbackFromUrl: "", adultSearchBlocked: false };
+}
+
+function isBoothAgeConfirmationPage(html) {
+  return html.includes("年齢確認") &&
+    html.includes("あなたは18歳以上ですか") &&
+    html.includes("js-approve-adult");
 }
 
 function buildBoothSearchUrl(tag, includeAdult) {
@@ -428,6 +445,7 @@ function emptySummary() {
     discordNotifiedCount: 0,
     discordFailedCount: 0,
     adultSearchFallbackCount: 0,
+    adultSearchBlockedCount: 0,
     bootstrappedCount: 0
   };
 }
@@ -435,9 +453,16 @@ function emptySummary() {
 function buildRunMessage(errors, summary) {
   const messages = [...errors];
 
-  if (summary.adultSearchFallbackCount > 0) {
+  if (summary.adultSearchBlockedCount > 0) {
     messages.push(
-      `成人向け検索で結果が 0 件だったため、通常検索へ ${summary.adultSearchFallbackCount} 件フォールバックしました。BOOTH の年齢確認が有効か確認してください。`
+      `BOOTH の年齢確認が未完了のため、成人向け商品は ${summary.adultSearchBlockedCount} タグで検索できませんでした。通常検索の結果だけ取得しました。`
+    );
+  }
+
+  const normalFallbackCount = summary.adultSearchFallbackCount - summary.adultSearchBlockedCount;
+  if (normalFallbackCount > 0) {
+    messages.push(
+      `成人向け検索で結果が 0 件だったため、通常検索へ ${normalFallbackCount} 件フォールバックしました。`
     );
   }
 

@@ -10,7 +10,10 @@ document.addEventListener("DOMContentLoaded", async () => {
   } else {
     const checkedAt = new Date(lastRun.checkedAt).toLocaleString();
     const runSummary = lastRun.summary || {};
-    summary.textContent = `${checkedAt}: ${formatStatus(lastRun.status)} / 新規 ${runSummary.newCount ?? 0} 件 / Discord通知 ${runSummary.discordNotifiedCount ?? 0} 件 / 一覧追加 ${lastRun.notifiedCount ?? 0} 件`;
+    const adultBlockedText = runSummary.adultSearchBlockedCount > 0
+      ? ` / 成人向け検索不可 ${runSummary.adultSearchBlockedCount} タグ`
+      : "";
+    summary.textContent = `${checkedAt}: ${formatStatus(lastRun.status)} / 新規 ${runSummary.newCount ?? 0} 件 / Discord通知 ${runSummary.discordNotifiedCount ?? 0} 件 / 一覧追加 ${lastRun.notifiedCount ?? 0} 件${adultBlockedText}`;
   }
 
   renderRecentProducts(products);
