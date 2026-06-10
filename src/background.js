@@ -118,6 +118,7 @@ async function runCheck({ reason } = {}) {
   const newlySeenProducts = [];
   const tagResults = [];
   const summary = emptySummary();
+  let discordStopReason = "";
 
   for (const tag of tags) {
     const tagResult = {
@@ -126,6 +127,8 @@ async function runCheck({ reason } = {}) {
       newCount: 0,
       discordNotifiedCount: 0,
       discordFailedCount: 0,
+      discordSkippedCount: 0,
+      discordStopReason: "",
       sourceUrl: "",
       sourceUrls: [],
       fallbackFromUrl: "",
@@ -190,18 +193,30 @@ async function runCheck({ reason } = {}) {
         tagResult.newCount += 1;
         summary.newCount += 1;
 
-        const discordNotified = settings.notifyDiscord
+        const discordResult = settings.notifyDiscord && !discordStopReason
           ? await sendDiscordNotification(webhookUrl, product, tag)
-          : false;
+          : { ok: false, skipped: Boolean(discordStopReason), message: discordStopReason };
 
-        if (discordNotified) {
+        if (discordResult.ok) {
           tagResult.discordNotifiedCount += 1;
           summary.discordNotifiedCount += 1;
         }
 
-        if (settings.notifyDiscord && !discordNotified) {
+        if (settings.notifyDiscord && discordResult.skipped) {
+          tagResult.discordSkippedCount += 1;
+          tagResult.discordStopReason = discordResult.message;
+          summary.discordSkippedCount += 1;
+        }
+
+        if (settings.notifyDiscord && !discordResult.ok && !discordResult.skipped) {
           tagResult.discordFailedCount += 1;
           summary.discordFailedCount += 1;
+
+          if (discordResult.stopFurtherAttempts) {
+            discordStopReason = discordResult.message;
+            tagResult.discordStopReason = discordStopReason;
+            errors.push(`Discord通知を停止しました: ${discordStopReason}`);
+          }
         }
 
         seenIds.push(product.id);
@@ -412,16 +427,34 @@ async function sendDiscordNotification(webhookUrl, product, tag) {
     embed.thumbnail = { url: product.imageUrl };
   }
 
-  const response = await fetch(webhookUrl, {
-    method: "POST",
-    headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({
-      username: "BOOTH通知Bot",
-      embeds: [embed]
-    })
-  });
+  try {
+    const response = await fetch(webhookUrl, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        username: "BOOTH通知Bot",
+        embeds: [embed]
+      })
+    });
 
-  return response.ok;
+    if (response.ok) {
+      return { ok: true };
+    }
+
+    const message = `Discord Webhook が ${response.status} を返しました。Webhook URL、削除状態、チャンネル権限を確認してください。`;
+    return {
+      ok: false,
+      message,
+      status: response.status,
+      stopFurtherAttempts: [401, 403, 404].includes(response.status)
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message: error.message || "Discord通知に失敗しました。",
+      stopFurtherAttempts: false
+    };
+  }
 }
 
 async function updateBadge() {
@@ -525,6 +558,7 @@ function emptySummary() {
     newCount: 0,
     discordNotifiedCount: 0,
     discordFailedCount: 0,
+    discordSkippedCount: 0,
     adultSearchFallbackCount: 0,
     adultSearchBlockedCount: 0,
     bootstrappedCount: 0
@@ -555,6 +589,10 @@ function buildRunMessage(errors, summary) {
 
   if (summary.discordFailedCount > 0) {
     messages.push(`Discord通知 ${summary.discordFailedCount} 件に失敗しました。`);
+  }
+
+  if (summary.discordSkippedCount > 0) {
+    messages.push(`Discord通知 ${summary.discordSkippedCount} 件をスキップしました。`);
   }
 
   return messages.join("\n");
