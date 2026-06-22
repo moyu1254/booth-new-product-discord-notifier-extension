@@ -26,12 +26,7 @@ function parseProductCard(card) {
   const price = card.querySelector("[class*='price']");
   const id = itemMatch[1];
   const title = cleanText(link.textContent) || cleanText(image?.alt) || "無題の商品";
-  const imageUrl = normalizeImageUrl(
-    image?.getAttribute("src") ||
-      image?.getAttribute("data-src") ||
-      image?.getAttribute("data-original") ||
-      ""
-  );
+  const imageUrl = getImageUrlFromElement(image);
   const badgeTexts = Array.from(
     card.querySelectorAll("span, div, p, a, li")
   ).map((element) => cleanText(element.textContent));
@@ -47,6 +42,47 @@ function parseProductCard(card) {
   };
 }
 
+function parseProductDetailImageFromHtml(html) {
+  const document = new DOMParser().parseFromString(html, "text/html");
+  const selectors = [
+    'meta[property="og:image"]',
+    'meta[name="twitter:image"]',
+    'meta[name="twitter:image:src"]'
+  ];
+
+  for (const selector of selectors) {
+    const imageUrl = document.querySelector(selector)?.getAttribute("content") || "";
+    if (imageUrl) {
+      return normalizeImageUrl(imageUrl);
+    }
+  }
+
+  return "";
+}
+
+function getImageUrlFromElement(image) {
+  if (!image) {
+    return "";
+  }
+
+  for (const attr of ["src", "data-src", "data-original", "data-lazy-src"]) {
+    const imageUrl = image.getAttribute(attr);
+    if (imageUrl) {
+      return normalizeImageUrl(imageUrl);
+    }
+  }
+
+  const srcset = image.getAttribute("srcset") || "";
+  if (srcset) {
+    const firstCandidate = srcset.split(",")[0]?.trim().split(/\s+/)[0] || "";
+    if (firstCandidate) {
+      return normalizeImageUrl(firstCandidate);
+    }
+  }
+
+  return "";
+}
+
 function cleanText(text) {
   return (text || "").replace(/\s+/g, " ").trim();
 }
@@ -58,6 +94,10 @@ function normalizeImageUrl(url) {
 
   if (url.startsWith("//")) {
     return `https:${url}`;
+  }
+
+  if (url.startsWith("/")) {
+    return `https://booth.pm${url}`;
   }
 
   return url;

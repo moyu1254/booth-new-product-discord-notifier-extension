@@ -613,7 +613,7 @@ async function sendDiscordNotifications(webhookUrl, products) {
   let stopFurtherAttempts = false;
 
   for (let index = 0; index < products.length; index += 10) {
-    const chunk = products.slice(index, index + 10);
+    const chunk = await enrichProductsWithDetailImages(products.slice(index, index + 10));
     let result = await sendDiscordWebhook(
       webhookUrl,
       chunk.map(buildDiscordEmbed),
@@ -653,6 +653,48 @@ async function sendDiscordNotifications(webhookUrl, products) {
   return { notifiedCount, failedCount, failedProducts, message, stopFurtherAttempts };
 }
 
+async function enrichProductsWithDetailImages(products) {
+  return Promise.all(products.map(async (product) => {
+    const imageUrl = await fetchProductDetailImageUrl(product.url);
+    return imageUrl ? { ...product, imageUrl } : product;
+  }));
+}
+
+async function fetchProductDetailImageUrl(productUrl) {
+  try {
+    const response = await fetch(productUrl, {
+      credentials: "include"
+    });
+
+    if (!response.ok) {
+      return "";
+    }
+
+    const html = await response.text();
+    return parseProductDetailImageInDocument(html);
+  } catch (error) {
+    return "";
+  }
+}
+
+async function parseProductDetailImageInDocument(html) {
+  if (typeof DOMParser !== "undefined") {
+    return parseProductDetailImageFromHtml(html);
+  }
+
+  await ensureOffscreenDocument();
+  const response = await ext.runtime.sendMessage({
+    type: "PARSE_PRODUCT_DETAIL_IMAGE",
+    html
+  });
+
+  if (!response?.ok) {
+    return "";
+  }
+
+  return String(response.imageUrl || "");
+}
+
 function shouldStopDiscordAttemptsAfterFailure(result) {
   return result.stopFurtherAttempts ||
     result.status === 429 ||
@@ -674,7 +716,7 @@ function buildDiscordEmbed(product) {
   };
 
   if (product.imageUrl) {
-    embed.thumbnail = { url: product.imageUrl };
+    embed.image = { url: product.imageUrl };
   }
 
   return embed;
